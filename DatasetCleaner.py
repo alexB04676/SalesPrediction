@@ -6,7 +6,7 @@ import pandas as pd
 import re
 from tqdm import tqdm
 
-class TextPreprocessor:
+class Preprocessor:
     def __init__(self):
         """Initialize the preprocessor with options to remove stopwords and lemmatize."""
         pass
@@ -25,6 +25,16 @@ class TextPreprocessor:
         df[text_column] = df[text_column].progress_apply(self.preprocess_text)
         return df
 
+    def drop(self, df, columns=[]):
+        # Check if columns exist in the DataFrame
+        missing_columns = [col for col in columns if col not in df.columns]
+        if missing_columns:
+            raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
+        
+        # Drop specified columns
+        df = df.drop(columns=columns, axis=1)
+        return df
+    
     def save_dataframe(self, df, output_path):
         """Write the cleaned dataset to a new JSONL file for future use."""
         df.to_csv(output_path, orient='records', lines=True)
