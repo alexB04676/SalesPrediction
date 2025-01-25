@@ -5,6 +5,7 @@
 import pandas as pd
 import re
 from tqdm import tqdm
+from sklearn.preprocessing import MinMaxScaler
 
 class Preprocessor:
     def __init__(self):
@@ -35,6 +36,28 @@ class Preprocessor:
         df = df.drop(columns=columns, axis=1)
         return df
     
+    def normalize(self, df, columns = []):
+        # Check if columns exist in the DataFrame
+        missing_columns = [col for col in columns if col not in df.columns]
+        if missing_columns:
+            raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
+        
+        
+        scaler = MinMaxScaler()
+        df[columns] = scaler.fit_transform(df[columns])
+        return df
+    
+    def unique_items_list(self, df, columns=[]):
+        result = {}  # Dictionary to store unique items for each column
+
+        for column in columns:
+            if column in df.columns:  # Ensure the column exists in the DataFrame
+                unique_items = df[column].dropna().astype(str).str.strip().unique()
+                result[column] = sorted(unique_items)  # Sort the unique items alphabetically
+        
+        return result
+
+        
     def save_dataframe(self, df, output_path):
         """Write the cleaned dataset to a new JSONL file for future use."""
         df.to_csv(output_path, orient='records', lines=True)
