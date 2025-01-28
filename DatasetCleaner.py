@@ -6,6 +6,7 @@ import pandas as pd
 import re
 from tqdm import tqdm
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import OneHotEncoder
 
 class Preprocessor:
     def __init__(self):
@@ -57,7 +58,23 @@ class Preprocessor:
         
         return result
 
+    def OneHotEncoder(self, df, columns=[]):
+        # Check if columns exist in the DataFrame
+        missing_columns = [col for col in columns if col not in df.columns]
+        if missing_columns:
+            raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
         
+        # Initialize OneHotEncoder (ignores unknown categories and outputs a pandas DataFrame)
+        ohe = OneHotEncoder(handle_unknown="ignore", sparse_output=False).set_output(transform="pandas")
+        
+        # Transform the specified columns
+        ohe_transformed = ohe.fit_transform(df[columns])
+        
+        # Merge the new one-hot encoded columns with the original DataFrame
+        df = pd.concat([df.drop(columns, axis=1), ohe_transformed], axis=1)
+        return df
+    
+    
     def save_dataframe(self, df, output_path):
         """Write the cleaned dataset to a new JSONL file for future use."""
         df.to_csv(output_path, orient='records', lines=True)

@@ -37,8 +37,9 @@ df = preprocess.drop(df, columns= ["Product_Name", "Packaging_Type"])
 df = preprocess.normalize(df, columns= ['Number_of_Reviews', 'Price_USD'])
 
 # get a list of non-numerical columns' values to decide on the approach for encoding
-list = preprocess.unique_items_list(df, columns = ["Product_Name", "Brand", "Category", "Usage_Frequency", "Product_Size", "Skin_Type", 
-"Gender_Target", "Packaging_Type", "Main_Ingredient", "Cruelty_Free", "Country_of_Origin"])
+"""list = preprocess.unique_items_list(df, columns = ["Product_Name", "Brand", "Category", "Usage_Frequency", "Product_Size", "Skin_Type", 
+"Gender_Target", "Packaging_Type", "Main_Ingredient", "Cruelty_Free", "Country_of_Origin"])"""
 
-print(list)
-print(df.head(5))
+df = preprocess.OneHotEncoder(df, columns=["Usage_Frequency", "Product_Size", "Skin_Type", "Gender_Target", "Main_Ingredient", "Country_of_Origin"])
+
+print(df.shape)
