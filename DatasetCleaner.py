@@ -7,6 +7,7 @@ import re
 from tqdm import tqdm
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import OneHotEncoder
+from category_encoders import TargetEncoder
 
 class Preprocessor:
     def __init__(self):
@@ -21,13 +22,39 @@ class Preprocessor:
         text = re.sub(r"\W", " ", text)  # Remove special characters
         return text
 
+    def rows_sampling(self, df, n):
+        if not isinstance(n, int):
+            raise TypeError("The number of rows should be an integer")
+        
+        if isinstance(df, str):
+            df = pd.read_csv(df)
+        
+        return df.sample(n=n, random_state=42, ignore_index= True)
+       
     def preprocess_dataframe(self, df, text_column="text"):
         """Apply preprocessing to a Pandas DataFrame."""
         tqdm.pandas()  # Enable progress bars for Pandas operations
         df[text_column] = df[text_column].progress_apply(self.preprocess_text)
         return df
 
-    def drop(self, df, columns=[]):
+    def value_rows_remover(self, df, value, columns=[]):
+        if not isinstance(value, int):
+            raise TypeError("The value should either be an integer.")
+        
+        missing_columns = [col for col in columns if col not in df.columns]
+        if missing_columns:
+            raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
+
+        # Replace the given value with NaN only in the specified columns
+        df[columns] = df[columns].replace(value, pd.NA)
+
+        # Drop only NaN values in the specified columns, but keep the other data
+        df = df.dropna(subset=columns)
+
+        return df
+
+        
+    def columns_drop(self, df, columns=[]):
         # Check if columns exist in the DataFrame
         missing_columns = [col for col in columns if col not in df.columns]
         if missing_columns:
@@ -74,8 +101,21 @@ class Preprocessor:
         df = pd.concat([df.drop(columns, axis=1), ohe_transformed], axis=1)
         return df
     
+    def TargetEncoder(self, df, columns = []):
+        # Check if columns exist in the DataFrame
+        missing_columns = [col for col in columns if col not in df.columns]
+        if missing_columns:
+            raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
+        
+        te = TargetEncoder(smoothing= 4.0, handle_unknown= "value", min_samples_leaf= 10.0, handle_missing= "value")
+        
+        te_transformed = te.fit_transform(df[columns])
+        
+        # Merge the new one-hot encoded columns with the original DataFrame
+        df = pd.concat([df.drop(columns, axis=1), te_transformed], axis=1)
+        return df
     
     def save_dataframe(self, df, output_path):
         """Write the cleaned dataset to a new JSONL file for future use."""
-        df.to_csv(output_path, orient='records', lines=True)
+        df.to_csv(output_path)
         print(f"Data saved to {output_path}")
