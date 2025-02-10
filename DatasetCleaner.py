@@ -43,6 +43,10 @@ class Preprocessor:
         return df
 
     def value_rows_remover(self, df: pd.DataFrame, value: int, columns: Union[str, list]):
+        
+        if isinstance(columns, str):
+            columns = [columns]
+        
         if not isinstance(value, int):
             raise TypeError("The value should either be an integer.")
             
@@ -60,6 +64,10 @@ class Preprocessor:
 
         
     def columns_drop(self, df: pd.DataFrame, columns: Union[list, str]) -> pd.DataFrame:
+        
+        if isinstance(columns, str):
+            columns = [columns]
+        
         # Check if columns exist in the DataFrame
         missing_columns = [col for col in columns if col not in df.columns]
         if missing_columns:
@@ -102,6 +110,10 @@ class Preprocessor:
         return df
 
     def normalize(self, df: pd.DataFrame, columns: Union[list, str]) -> pd.DataFrame:
+        
+        if isinstance(columns, str):
+            columns = [columns]
+        
         # Check if columns exist in the DataFrame
         missing_columns = [col for col in columns if col not in df.columns]
         if missing_columns:
@@ -112,23 +124,46 @@ class Preprocessor:
         df[columns] = scaler.fit_transform(df[columns])
         return df
     
-    def unique_items_list(self, df: pd.DataFrame, columns: Union[list, str]) -> dict:
+    def unique_items_list(self, df: pd.DataFrame, columns: Union[list, str]):
+        
         result = {}  # Dictionary to store unique items for each column
 
-        for column in columns:
-            if column in df.columns:  # Ensure the column exists in the DataFrame
-                unique_items = df[column].dropna().astype(str).str.strip().unique()
-                result[column] = sorted(unique_items)  # Sort the unique items alphabetically
+        if isinstance(columns, str):
+            columns = [columns]
         
+        # Check if columns exist in the DataFrame
+        missing_columns = [col for col in columns if col not in df.columns]
+        if missing_columns:
+            raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
+        
+        for col in columns:
+            if col in df.columns:  # Ensure the column exists in the DataFrame
+                unique_items = df[col].dropna().astype(str).str.strip().unique()
+                result[col] = sorted(unique_items)  # Sort the unique items alphabetically
+        
+        print(result)
         return result
 
     def min_max_finder(self, df: pd.DataFrame, columns: Union[list, str]) -> list:
+        
+        if isinstance(columns, str):
+            columns = [columns]
+            
+       # Check if columns exist in the DataFrame
+        missing_columns = [col for col in columns if col not in df.columns]
+        if missing_columns:
+            raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
+        
         for col in columns:
             print(f"{col}:")
             print(df[col].agg(['min', 'max']))
             print()
 
     def OneHotEncoder(self, df: pd.DataFrame, columns: Union[list, str]) -> pd.DataFrame:
+        
+        if isinstance(columns, str):
+            columns = [columns]
+        
         # Check if columns exist in the DataFrame
         missing_columns = [col for col in columns if col not in df.columns]
         if missing_columns:
@@ -146,6 +181,9 @@ class Preprocessor:
     
     def TargetEncoder(self, df: pd.DataFrame, columns: Union[list, str]) -> pd.DataFrame :
         
+        if isinstance(columns, str):
+            columns = [columns]
+        
         # Check if columns exist in the DataFrame
         missing_columns = [col for col in columns if col not in df.columns]
         if missing_columns:
@@ -159,7 +197,40 @@ class Preprocessor:
         df = pd.concat([df.drop(columns, axis=1), te_transformed], axis=1)
         return df
     
-    def save_dataframe(self, df, output_path: str):
-        """Write the cleaned dataset to a new JSONL file for future use."""
-        df.to_csv(output_path, index = False)
-        print(f"Data saved to {output_path}")
+    def FrequencyEncoding(self, df: pd.DataFrame, columns: Union[list, str]):
+        
+        if isinstance(columns, str):
+            columns = [columns]
+        
+        # Check if columns exist in the DataFrame
+        missing_columns = [col for col in columns if col not in df.columns]
+        
+        if missing_columns:
+            raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
+
+        for col in columns:
+            df[f"{col}_freq"] = df[col].map(df[col].value_counts(normalize=True))
+        
+        return df
+        
+    def save_dataframe(self, df, output_path: str, file_format: str):
+        """Write the cleaned dataset to a new file for future use."""
+        
+        if file_format.lower() == "csv":
+            df.to_csv(output_path, index = False)
+            print(f"Data saved to {output_path}")
+            
+        elif file_format.lower() == "json":
+            df.to_json(output_path, index = False)
+            print(f"Data saved to {output_path}")
+            
+        elif file_format.lower() == "jsonl":
+            df.to_json(output_path, index = False, lines = True)
+            print(f"Data saved to {output_path}")
+            
+        elif file_format.lower() == "excel":
+            df.to_excel(output_path, index = False)
+            print(f"Data saved to {output_path}")
+        
+        else:
+            print("please enter a viable file format (CSV, JSON, JSONL, Excel)")
