@@ -124,7 +124,7 @@ class Preprocessor:
         df[columns] = scaler.fit_transform(df[columns])
         return df
     
-    def unique_items_list(self, df: pd.DataFrame, columns: Union[list, str]):
+    def unique_items_list(self, df: pd.DataFrame, columns: Union[list, str], count: bool):
         
         result = {}  # Dictionary to store unique items for each column
 
@@ -140,6 +140,12 @@ class Preprocessor:
             if col in df.columns:  # Ensure the column exists in the DataFrame
                 unique_items = df[col].dropna().astype(str).str.strip().unique()
                 result[col] = sorted(unique_items)  # Sort the unique items alphabetically
+        
+        if count == True:
+            for col in result:
+                print(f"{col}: {len(result[col])}")
+        else:
+            pass
         
         print(result)
         return result
@@ -179,10 +185,13 @@ class Preprocessor:
         df = pd.concat([df.drop(columns, axis=1), ohe_transformed], axis=1)
         return df
     
-    def TargetEncoder(self, df: pd.DataFrame, columns: Union[list, str]) -> pd.DataFrame :
+    def TargetEncoder(self, df: pd.DataFrame, columns: Union[list, str], target = str) -> pd.DataFrame :
         
         if isinstance(columns, str):
             columns = [columns]
+        
+        if isinstance(target, str):
+            target = [target]
         
         # Check if columns exist in the DataFrame
         missing_columns = [col for col in columns if col not in df.columns]
@@ -191,7 +200,7 @@ class Preprocessor:
         
         te = TargetEncoder(smoothing= 4.0, handle_unknown= "value", min_samples_leaf= 10.0, handle_missing= "value")
         
-        te_transformed = te.fit_transform(df[columns])
+        te_transformed = te.fit_transform(df[columns], df[target])
         
         # Merge the new one-hot encoded columns with the original DataFrame
         df = pd.concat([df.drop(columns, axis=1), te_transformed], axis=1)
