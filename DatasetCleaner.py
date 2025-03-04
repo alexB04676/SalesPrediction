@@ -16,7 +16,6 @@ class Preprocessor:
     tqdm.pandas()
     
     def __init__(self):
-        """Initialize the preprocessor with options to remove stopwords and lemmatize."""
         pass
     
     def clean_text(self, text):
