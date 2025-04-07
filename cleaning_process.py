@@ -28,12 +28,11 @@ def cleaning():
     df = df.dropna()
     df = preprocess.value_rows_remover(df, 0, columns=["price"])
     df = preprocess.value_remover(df, value= [(500,200000), 500000, 1950], columns=["price", "odometer", "year"], mode = ["range", "below", "above"])
-
     df = preprocess.columns_drop(df, columns= "region")
     df = preprocess.save_dataframe(df, "C:/Users/ali/Projects/SalesPrediction/Sampled_dataset.csv", file_format= "csv")
-    """
+    
     df = preprocess.normalize(df, columns= ["price", "odometer", "year"], mapping_return= True)
-    items = preprocess.unique_items_list(df, columns= "model")
+    # items = preprocess.unique_items_list(df, columns= "model")
     df = preprocess.FrequencyEncoder(df, columns= "model", mapping_return = True)
     df = preprocess.save_dataframe(df, "C:/Users/ali/Projects/SalesPrediction/Sampled_dataset.csv", file_format= "csv")
 
@@ -41,4 +40,4 @@ def cleaning():
     df = preprocess.FrequencyEncoder(df, columns="manufacturer", mapping_return = True)
     df = preprocess.TargetEncoder(df, columns=["state"], target= "price", mapping_return = True)
     df = preprocess.columns_drop(df, columns=["manufacturer", "model"])
-    df = preprocess.save_dataframe(df, output_path= "C:/Users/ali/Projects/SalesPrediction/Sampled_dataset.csv", file_format= "csv")"""
+    df = preprocess.save_dataframe(df, output_path= "C:/Users/ali/Projects/SalesPrediction/Sampled_dataset.csv", file_format= "csv")

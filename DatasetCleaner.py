@@ -11,6 +11,7 @@ from sklearn.preprocessing import OneHotEncoder
 from category_encoders import TargetEncoder
 import os
 import json
+import joblib
 
 class MappingManager:
     
@@ -18,21 +19,47 @@ class MappingManager:
         self.save_path = save_path
         os.makedirs(save_path, exist_ok=True)
 
-    def save_mapping(self, column_name, mapping):
-        file_path = os.path.join(self.save_path, f"{column_name}_mapping.json")
-        with open(file_path, "w") as f:
-            json.dump(mapping, f)
-            print(f"mapping created as {column_name}_mapping.json")
+    def save_mapping(self, column_name, mapping, format: str = "joblib"):
+        format = format.lower().strip()
+        file_path = os.path.join(self.save_path, f"{column_name}_mapping.{format}")
 
-    def load_mapping(self, column_name):
-        file_path = os.path.join(self.save_path, f"{column_name}_mapping.json")
-        if os.path.exists(file_path):
-            with open(file_path, "r") as f:
-                return json.load(f)
-        return None
+        if format == "json":
+            with open(file_path, "w") as f:
+                json.dump(mapping, f)
+            print(f"✅ Mapping saved: {file_path}")
+
+        elif format == "joblib":
+            file_path = os.path.join(self.save_path, f"{column_name}_mapping.pkl")
+            joblib.dump(mapping, file_path)
+            print(f"✅ Mapping saved: {file_path}")
+
+        else:
+            print("❌ Please enter a valid format ('joblib' or 'json').")
+
+    def load_mapping(self, column_name, format: str = "joblib"):
+        format = format.lower().strip()
+        file_path = os.path.join(self.save_path, f"{column_name}_mapping.{format}")
+
+        if format == "json":
+            if os.path.exists(file_path):
+                with open(file_path, "r") as f:
+                    return json.load(f)
+            else:
+                print(f"❌ Mapping '{column_name}' (JSON) not found in '{self.save_path}'.")
+
+        elif format == "joblib":
+            file_path = os.path.join(self.save_path, f"{column_name}_mapping.pkl")
+            if os.path.exists(file_path):
+                return joblib.load(file_path)
+            else:
+                print(f"❌ Mapping '{column_name}' (Joblib) not found in '{self.save_path}'.")
+
+        else:
+            print("❌ Please enter a valid format ('joblib' or 'json').")
 
     def apply_mapping(self, series, mapping):
         return series.map(mapping)
+
 
 class Preprocessor:
     
@@ -131,7 +158,7 @@ class Preprocessor:
             
         return df
 
-    def normalize(self, df: pd.DataFrame, columns: Union[list, str], mapping_return: bool = False) -> pd.DataFrame:
+    def normalize(self, df: pd.DataFrame, columns: Union[list, str], mapping_return: bool = False, mapping_format: str = "joblib") -> pd.DataFrame:
         # Convert a single column name to a list for consistent processing
         if isinstance(columns, str):
             columns = [columns]
@@ -143,16 +170,20 @@ class Preprocessor:
 
         # Initialize the scaler and mapping manager
         scaler = MinMaxScaler()
-
+        mapping_manager = MappingManager() if mapping_return else None
+        
         # Loop through each column to apply normalization
         for col in columns:
             # Perform Min-Max Scaling and reshape to fit the scaler's expected input
             normalized = scaler.fit_transform(df[[col]])
 
-            # Initialize and Save the scaler object as mapping if requested
+            # Save the scaler object as mapping if requested
             if mapping_return:
-                mapping_manager = MappingManager()
-                mapping_manager.save_mapping(col, scaler)
+                if mapping_format.lower().strip() == "json":
+                    mapping_manager.save_mapping(col, scaler, format="json")
+                
+                else:
+                    mapping_manager.save_mapping(col, scaler, format="joblib")
 
             # Update the DataFrame column with the normalized values
             df[col] = normalized
@@ -214,15 +245,17 @@ class Preprocessor:
 
         # Initialize the OneHotEncoder with settings to handle unknown and missing values
         ohe = OneHotEncoder(handle_unknown="ignore", sparse_output=False).set_output(transform="pandas")
-
+        
+        # Initialize the mapping manager
+        mapping_manager = MappingManager() if mapping_return else None
+        
         # Loop through each column to apply one-hot encoding
         for col in columns:
             # Transform the data using the encoder and store as a DataFrame
             ohe_transformed = ohe.fit_transform(df[[col]])
 
-            # Initialize mapping manager and Save the fitted encoder object as mapping if requested
+            # Save the fitted encoder object as mapping if requested
             if mapping_return:
-                mapping_manager = MappingManager()
                 mapping_manager.save_mapping(col, ohe)
 
             # Concatenate the one-hot encoded columns with the original DataFrame
@@ -230,7 +263,6 @@ class Preprocessor:
 
         return df
 
-    
 
     def TargetEncoder(self, df: pd.DataFrame, columns: Union[list, str], target: str, mapping_return: bool = False) -> pd.DataFrame:
         # Convert a single column name to a list for consistent processing
@@ -245,12 +277,14 @@ class Preprocessor:
         # Initialize the TargetEncoder with configurations
         te = TargetEncoder(smoothing=4.0, handle_unknown="value", min_samples_leaf=10.0, handle_missing="value")
 
+        # Initialize the mapping manager
+        mapping_manager = MappingManager() if mapping_return else None
+        
         # Apply target encoding using the specified columns and target variable
         te_transformed = te.fit_transform(df[columns], df[target])
 
-        # Initialize and Save the fitted encoder object as mapping if requested
+        # Save the fitted encoder object as mapping if requested
         if mapping_return:
-            mapping_manager = MappingManager()
             mapping_manager.save_mapping(",".join(columns), te)
 
         # Merge the target encoded columns back into the original DataFrame
@@ -270,13 +304,16 @@ class Preprocessor:
         if missing_columns:
             raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
 
+        # Initialize the mapping manager
+        mapping_manager = MappingManager() if mapping_return else None
+        
         for col in columns:
             # Calculate frequency of each unique value
+            df[f"{col}_freq"] = df[col].map(df[col].value_counts(normalize=True))
             freq = df[col].value_counts(normalize=True).to_dict()
 
-            # Initialize the mapping manager and Save the frequency mapping if requested
+            # Save the frequency mapping if requested
             if mapping_return:
-                mapping_manager = MappingManager()
                 mapping_manager.save_mapping(col, freq)
 
             # Map each value to its calculated frequency
