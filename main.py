@@ -45,7 +45,7 @@ def process_input(df: pd.DataFrame):
         if df.empty:
             raise ValueError("Dataset is empty. ")
     except FileNotFoundError:
-        print("Error: file not found. Make sure you're typing the right name?")
+        print("Error: file not found. Make sure you've went through the preprocessing step? ")
         exit()
     except ValueError as e:
         print(e)
@@ -55,23 +55,21 @@ def process_input(df: pd.DataFrame):
     
     if "price" in input_data.columns:
         input_data = input_data.drop(columns=["price"])
-    input_data.loc[0] = 0
 
+    year_scaler = joblib.load("scalers/year_scaler.pkl")
+    mileage_scaler = joblib.load("scalers/odometer_scaler.pkl")
     manufacturer_mapping= mapper.load_mapping("manufacturer")
     model_mapping = mapper.load_mapping("model")
     
-    manufacturer_converted = manufacturer_mapping.get(df["manufacturer_freq"].iloc[0], 0.0001)
-    model_converted = model_mapping.get(df["model_freq"].iloc[0], 0.0001)
-    year_converted = preprocess.normalize(df, columns= "year")
-    mileage_converted = preprocess.normalize(df, columns="odometer")
-    
-    # year_converted = year_converted_df["year"].iloc[0]
-    # mileage_converted = mileage_converted_df["mileage"].iloc[0]
+    manufacturer_converted = manufacturer_mapping.get(input_data["manufacturer_freq"].iloc[0], 0.0001)
+    model_converted = model_mapping.get(input_data["model_freq"].iloc[0], 0.0001)
+    year_converted = year_scaler.transform(pd.DataFrame([[user_input["year"]]], columns=["year"]))
+    mileage_converted = mileage_scaler.transform(pd.DataFrame([[user_input["mileage"]]], columns=["odometer"]))
     
     input_data.at[0, "manufacturer_freq"] = manufacturer_converted
     input_data.at[0, "model_freq"] = model_converted
-    input_data.at[0, "year"] = year_converted["year"].iloc[0]
-    input_data.at[0, "odometer"] = mileage_converted["odometer"].iloc[0]
+    input_data.at[0, "year"] = year_converted[0][0]
+    input_data.at[0, "odometer"] = mileage_converted[0][0]
     
     return input_data
 

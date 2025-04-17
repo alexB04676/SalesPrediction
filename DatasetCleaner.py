@@ -84,12 +84,6 @@ class Preprocessor:
             df = pd.read_csv(df, index_col= False)
         
         return df.sample(n=n, random_state=42, ignore_index= True)
-       
-    def preprocess_dataframe(self, df: pd.DataFrame, text_column="text") -> pd.DataFrame:
-        """Apply preprocessing to a Pandas DataFrame."""
-        tqdm.pandas()  # Enable progress bars for Pandas operations
-        df[text_column] = df[text_column].progress_apply(self.preprocess_text)
-        return df
 
     def value_rows_remover(self, df: pd.DataFrame, value: int, columns: Union[str, list]):
         
@@ -158,7 +152,12 @@ class Preprocessor:
             
         return df
 
-    def normalize(self, df: pd.DataFrame, columns: Union[list, str], mapping_return: bool = False, mapping_format: str = "joblib") -> pd.DataFrame:
+    def normalize(self, df: pd.DataFrame,
+                  columns: Union[list, str],
+                  mapping_return: bool = False,
+                  mapping_format: str = "joblib",
+                  save_scaler: bool = True,) -> pd.DataFrame:
+        
         # Convert a single column name to a list for consistent processing
         if isinstance(columns, str):
             columns = [columns]
@@ -169,13 +168,21 @@ class Preprocessor:
             raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
 
         # Initialize the scaler and mapping manager
-        scaler = MinMaxScaler()
         mapping_manager = MappingManager() if mapping_return else None
         
         # Loop through each column to apply normalization
         for col in columns:
+            
+            scaler = MinMaxScaler()
             # Perform Min-Max Scaling and reshape to fit the scaler's expected input
             normalized = scaler.fit_transform(df[[col]])
+            
+            if save_scaler:
+                save_path_scaler = "scalers"
+                os.makedirs(save_path_scaler, exist_ok=True)
+                file_path = os.path.join(save_path_scaler, f"{col}_scaler.pkl")
+                joblib.dump(scaler, file_path)
+                print(f"✅ Scaler saved: {file_path}")
 
             # Save the scaler object as mapping if requested
             if mapping_return:
@@ -189,7 +196,6 @@ class Preprocessor:
             df[col] = normalized
 
         return df
-
     
     def unique_items_list(self, df: pd.DataFrame, columns: Union[list, str], count: bool):
         
@@ -274,14 +280,20 @@ class Preprocessor:
         if missing_columns:
             raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
 
+        df[target] = pd.to_numeric(df[target], errors="coerce")
+        df = df.dropna(subset=[target])
+        
         # Initialize the TargetEncoder with configurations
         te = TargetEncoder(smoothing=4.0, handle_unknown="value", min_samples_leaf=10.0, handle_missing="value")
 
         # Initialize the mapping manager
         mapping_manager = MappingManager() if mapping_return else None
         
+        print(type(df[target]))
+        print(df[target].head())
+
         # Apply target encoding using the specified columns and target variable
-        te_transformed = te.fit_transform(df[columns], df[target])
+        te_transformed = te.fit_transform(df[columns], pd.Series(df[target], name=target))
 
         # Save the fitted encoder object as mapping if requested
         if mapping_return:
