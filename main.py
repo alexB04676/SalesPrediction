@@ -9,9 +9,9 @@ import xgboost as xgb
 import os
 import numpy as np
 
-# clean = cleaning()
+clean = cleaning()
 
-# train = training()
+train = training()
 
 preprocess = Preprocessor()
 mapper = MappingManager()

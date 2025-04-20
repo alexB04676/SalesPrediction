@@ -197,7 +197,7 @@ class Preprocessor:
 
         return df
     
-    def unique_items_list(self, df: pd.DataFrame, columns: Union[list, str], count: bool):
+    def unique_items_list(self, df: pd.DataFrame, columns: Union[list, str], count: bool = False):
         
         result = {}  # Dictionary to store unique items for each column
 
@@ -289,9 +289,6 @@ class Preprocessor:
         # Initialize the mapping manager
         mapping_manager = MappingManager() if mapping_return else None
         
-        print(type(df[target]))
-        print(df[target].head())
-
         # Apply target encoding using the specified columns and target variable
         te_transformed = te.fit_transform(df[columns], pd.Series(df[target], name=target))
 
