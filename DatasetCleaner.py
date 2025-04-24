@@ -9,6 +9,56 @@ from typing import Union
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import OneHotEncoder
 from category_encoders import TargetEncoder
+import os
+import json
+import joblib
+
+class MappingManager:
+    
+    def __init__(self, save_path="mappings"):
+        self.save_path = save_path
+        os.makedirs(save_path, exist_ok=True)
+
+    def save_mapping(self, column_name, mapping, format: str = "joblib"):
+        format = format.lower().strip()
+        file_path = os.path.join(self.save_path, f"{column_name}_mapping.{format}")
+
+        if format == "json":
+            with open(file_path, "w") as f:
+                json.dump(mapping, f)
+            print(f"✅ Mapping saved: {file_path}")
+
+        elif format == "joblib":
+            file_path = os.path.join(self.save_path, f"{column_name}_mapping.pkl")
+            joblib.dump(mapping, file_path)
+            print(f"✅ Mapping saved: {file_path}")
+
+        else:
+            print("❌ Please enter a valid format ('joblib' or 'json').")
+
+    def load_mapping(self, column_name, format: str = "joblib"):
+        format = format.lower().strip()
+        file_path = os.path.join(self.save_path, f"{column_name}_mapping.{format}")
+
+        if format == "json":
+            if os.path.exists(file_path):
+                with open(file_path, "r") as f:
+                    return json.load(f)
+            else:
+                print(f"❌ Mapping '{column_name}' (JSON) not found in '{self.save_path}'.")
+
+        elif format == "joblib":
+            file_path = os.path.join(self.save_path, f"{column_name}_mapping.pkl")
+            if os.path.exists(file_path):
+                return joblib.load(file_path)
+            else:
+                print(f"❌ Mapping '{column_name}' (Joblib) not found in '{self.save_path}'.")
+
+        else:
+            print("❌ Please enter a valid format ('joblib' or 'json').")
+
+    def apply_mapping(self, series, mapping):
+        return series.map(mapping)
 
 
 class Preprocessor:
@@ -34,12 +84,6 @@ class Preprocessor:
             df = pd.read_csv(df, index_col= False)
         
         return df.sample(n=n, random_state=42, ignore_index= True)
-       
-    def preprocess_dataframe(self, df: pd.DataFrame, text_column="text") -> pd.DataFrame:
-        """Apply preprocessing to a Pandas DataFrame."""
-        tqdm.pandas()  # Enable progress bars for Pandas operations
-        df[text_column] = df[text_column].progress_apply(self.preprocess_text)
-        return df
 
     def value_rows_remover(self, df: pd.DataFrame, value: int, columns: Union[str, list]):
         
@@ -108,22 +152,52 @@ class Preprocessor:
             
         return df
 
-    def normalize(self, df: pd.DataFrame, columns: Union[list, str]) -> pd.DataFrame:
+    def normalize(self, df: pd.DataFrame,
+                  columns: Union[list, str],
+                  mapping_return: bool = False,
+                  mapping_format: str = "joblib",
+                  save_scaler: bool = True,) -> pd.DataFrame:
         
+        # Convert a single column name to a list for consistent processing
         if isinstance(columns, str):
             columns = [columns]
-        
-        # Check if columns exist in the DataFrame
+
+        # Check if all specified columns exist in the DataFrame
         missing_columns = [col for col in columns if col not in df.columns]
         if missing_columns:
             raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
+
+        # Initialize the scaler and mapping manager
+        mapping_manager = MappingManager() if mapping_return else None
         
-        
-        scaler = MinMaxScaler()
-        df[columns] = scaler.fit_transform(df[columns])
+        # Loop through each column to apply normalization
+        for col in columns:
+            
+            scaler = MinMaxScaler()
+            # Perform Min-Max Scaling and reshape to fit the scaler's expected input
+            normalized = scaler.fit_transform(df[[col]])
+            
+            if save_scaler:
+                save_path_scaler = "scalers"
+                os.makedirs(save_path_scaler, exist_ok=True)
+                file_path = os.path.join(save_path_scaler, f"{col}_scaler.pkl")
+                joblib.dump(scaler, file_path)
+                print(f"✅ Scaler saved: {file_path}")
+
+            # Save the scaler object as mapping if requested
+            if mapping_return:
+                if mapping_format.lower().strip() == "json":
+                    mapping_manager.save_mapping(col, scaler, format="json")
+                
+                else:
+                    mapping_manager.save_mapping(col, scaler, format="joblib")
+
+            # Update the DataFrame column with the normalized values
+            df[col] = normalized
+
         return df
     
-    def unique_items_list(self, df: pd.DataFrame, columns: Union[list, str], count: bool):
+    def unique_items_list(self, df: pd.DataFrame, columns: Union[list, str], count: bool = False):
         
         result = {}  # Dictionary to store unique items for each column
 
@@ -164,81 +238,119 @@ class Preprocessor:
             print(df[col].agg(['min', 'max']))
             print()
 
-    def OneHotEncoder(self, df: pd.DataFrame, columns: Union[list, str]) -> pd.DataFrame:
+    def OneHotEncoder(self, df: pd.DataFrame, columns: Union[list, str], mapping_return: bool = False) -> pd.DataFrame:
         
+        # Convert a single column name to a list for consistent processing
         if isinstance(columns, str):
             columns = [columns]
-        
-        # Check if columns exist in the DataFrame
+
+        # Check if all specified columns exist in the DataFrame
         missing_columns = [col for col in columns if col not in df.columns]
-        if missing_columns:
-            raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
-        
-        # Initialize OneHotEncoder (ignores unknown categories and outputs a pandas DataFrame)
-        ohe = OneHotEncoder(handle_unknown="ignore", sparse_output=False).set_output(transform="pandas")
-        
-        # Transform the specified columns
-        ohe_transformed = ohe.fit_transform(df[columns])
-        
-        # Merge the new one-hot encoded columns with the original DataFrame
-        df = pd.concat([df.drop(columns, axis=1), ohe_transformed], axis=1)
-        return df
-    
-    def TargetEncoder(self, df: pd.DataFrame, columns: Union[list, str], target = str) -> pd.DataFrame :
-        
-        if isinstance(columns, str):
-            columns = [columns]
-        
-        if isinstance(target, str):
-            target = [target]
-        
-        # Check if columns exist in the DataFrame
-        missing_columns = [col for col in columns if col not in df.columns]
-        if missing_columns:
-            raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
-        
-        te = TargetEncoder(smoothing= 4.0, handle_unknown= "value", min_samples_leaf= 10.0, handle_missing= "value")
-        
-        te_transformed = te.fit_transform(df[columns], df[target])
-        
-        # Merge the new one-hot encoded columns with the original DataFrame
-        df = pd.concat([df.drop(columns, axis=1), te_transformed], axis=1)
-        return df
-    
-    def FrequencyEncoding(self, df: pd.DataFrame, columns: Union[list, str]):
-        
-        if isinstance(columns, str):
-            columns = [columns]
-        
-        # Check if columns exist in the DataFrame
-        missing_columns = [col for col in columns if col not in df.columns]
-        
         if missing_columns:
             raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
 
+        # Initialize the OneHotEncoder with settings to handle unknown and missing values
+        ohe = OneHotEncoder(handle_unknown="ignore", sparse_output=False).set_output(transform="pandas")
+        
+        # Initialize the mapping manager
+        mapping_manager = MappingManager() if mapping_return else None
+        
+        # Loop through each column to apply one-hot encoding
         for col in columns:
-            df[f"{col}_freq"] = df[col].map(df[col].value_counts(normalize=True))
-        
+            # Transform the data using the encoder and store as a DataFrame
+            ohe_transformed = ohe.fit_transform(df[[col]])
+
+            # Save the fitted encoder object as mapping if requested
+            if mapping_return:
+                mapping_manager.save_mapping(col, ohe)
+
+            # Concatenate the one-hot encoded columns with the original DataFrame
+            df = pd.concat([df.drop(col, axis=1), ohe_transformed], axis=1)
+
         return df
+
+
+    def TargetEncoder(self, df: pd.DataFrame, columns: Union[list, str], target: str, mapping_return: bool = False) -> pd.DataFrame:
+        # Convert a single column name to a list for consistent processing
+        if isinstance(columns, str):
+            columns = [columns]
+
+        # Check if all specified columns exist in the DataFrame
+        missing_columns = [col for col in columns if col not in df.columns]
+        if missing_columns:
+            raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
+
+        df[target] = pd.to_numeric(df[target], errors="coerce")
+        df = df.dropna(subset=[target])
         
+        # Initialize the TargetEncoder with configurations
+        te = TargetEncoder(smoothing=4.0, handle_unknown="value", min_samples_leaf=10.0, handle_missing="value")
+
+        # Initialize the mapping manager
+        mapping_manager = MappingManager() if mapping_return else None
+        
+        # Apply target encoding using the specified columns and target variable
+        te_transformed = te.fit_transform(df[columns], pd.Series(df[target], name=target))
+
+        # Save the fitted encoder object as mapping if requested
+        if mapping_return:
+            mapping_manager.save_mapping(",".join(columns), te)
+
+        # Merge the target encoded columns back into the original DataFrame
+        df = pd.concat([df.drop(columns, axis=1), te_transformed], axis=1)
+
+        return df
+
+    
+    def FrequencyEncoder(self, df: pd.DataFrame, columns: Union[list, str], mapping_return: bool = False) -> pd.DataFrame:
+        
+        # Convert a single column name to a list for consistent processing
+        if isinstance(columns, str):
+            columns = [columns]
+
+        # Check if all specified columns exist in the DataFrame
+        missing_columns = [col for col in columns if col not in df.columns]
+        if missing_columns:
+            raise KeyError(f"Column(s) {missing_columns} not found in DataFrame.")
+
+        # Initialize the mapping manager
+        mapping_manager = MappingManager() if mapping_return else None
+        
+        for col in columns:
+            # Calculate frequency of each unique value
+            df[f"{col}_freq"] = df[col].map(df[col].value_counts(normalize=True))
+            freq = df[col].value_counts(normalize=True).to_dict()
+
+            # Save the frequency mapping if requested
+            if mapping_return:
+                mapping_manager.save_mapping(col, freq)
+
+            # Map each value to its calculated frequency
+            df[col] = df[col].map(freq)
+
+        return df
+
+
     def save_dataframe(self, df, output_path: str, file_format: str):
         """Write the cleaned dataset to a new file for future use."""
         
-        if file_format.lower() == "csv":
+        if file_format.lower().strip() == "csv":
             df.to_csv(output_path, index = False)
             print(f"Data saved to {output_path}")
             
-        elif file_format.lower() == "json":
+        elif file_format.lower().strip() == "json":
             df.to_json(output_path, index = False)
             print(f"Data saved to {output_path}")
             
-        elif file_format.lower() == "jsonl":
+        elif file_format.lower().strip() == "jsonl":
             df.to_json(output_path, index = False, lines = True)
             print(f"Data saved to {output_path}")
             
-        elif file_format.lower() == "excel":
+        elif file_format.lower().strip() == "excel":
             df.to_excel(output_path, index = False)
             print(f"Data saved to {output_path}")
         
         else:
             print("please enter a viable file format (CSV, JSON, JSONL, Excel)")
+            
+        return df
